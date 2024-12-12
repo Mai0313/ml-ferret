@@ -26,7 +26,7 @@ Brief description of the project.
 ## Overview
 
 <p align="center">
-    <img src="docs/docs/figs/ferret_fig_diagram_v2.png" width="100%"></a> <br>
+    <img src="docs/figs/ferret_fig_diagram_v2.png" width="100%"></a> <br>
     Diagram of Ferret Model.
 </p>
 
