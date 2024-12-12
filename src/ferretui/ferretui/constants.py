@@ -19,14 +19,14 @@ VOCAB_IMAGE_H = 1000
 
 # GROUNDING PROMPTS
 GROUNDING_TEMPLATES = [
-	'\nProvide the bounding boxes of the mentioned objects.',
- 	'\nInclude the coordinates for each mentioned object.',
-	'\nLocate the objects with their coordinates.',
-	'\nAnswer in [x1, y1, x2, y2] format.',
-	'\nMention the objects and their locations using the format [x1, y1, x2, y2].',
-	'\nDraw boxes around the mentioned objects.',
-	'\nUse boxes to show where each thing is.',
-	'\nTell me where the objects are with coordinates.',
-	'\nList where each object is with boxes.',
-	'\nShow me the regions with boxes.'
+    "\nProvide the bounding boxes of the mentioned objects.",
+    "\nInclude the coordinates for each mentioned object.",
+    "\nLocate the objects with their coordinates.",
+    "\nAnswer in [x1, y1, x2, y2] format.",
+    "\nMention the objects and their locations using the format [x1, y1, x2, y2].",
+    "\nDraw boxes around the mentioned objects.",
+    "\nUse boxes to show where each thing is.",
+    "\nTell me where the objects are with coordinates.",
+    "\nList where each object is with boxes.",
+    "\nShow me the regions with boxes.",
 ]

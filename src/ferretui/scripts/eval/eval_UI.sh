@@ -26,4 +26,3 @@ CUDA_VISIBLE_DEVICES=0 python -m ferretui.eval.model_UI \
     --region_format box \
     --add_region_feature \
     --conv_mode ferret_gemma_instruct
-

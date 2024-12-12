@@ -20,7 +20,14 @@ import math
 from .multimodal_encoder.builder import build_vision_tower
 import pdb
 
-from ferret.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+from ferret.constants import (
+    IGNORE_INDEX,
+    IMAGE_TOKEN_INDEX,
+    DEFAULT_IMAGE_PATCH_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IM_END_TOKEN,
+)
+
 DEFAULT_REGION_FEA_TOKEN = "<region_fea>"
 
 
@@ -31,9 +38,10 @@ def rand_sample(x, max_len):
         rand_idx = torch.randperm(x.shape[0])[:max_len]
     return x[rand_idx, :]
 
+
 def rand_sample_repeat(x, max_len):
     if x.shape[0] < max_len:
-        indices = torch.randint(0, x.shape[0], (max_len-x.shape[0],))
+        indices = torch.randint(0, x.shape[0], (max_len - x.shape[0],))
         # pdb.set_trace()
         return torch.cat((x, x[indices]), dim=0)
     elif x.shape[0] == max_len:
@@ -41,6 +49,7 @@ def rand_sample_repeat(x, max_len):
     else:
         rand_idx = torch.randperm(x.shape[0])[:max_len]
         return x[rand_idx, :]
+
 
 def point_sample(input, point_coords, return_dtype, **kwargs):
     """
@@ -107,7 +116,9 @@ def index_points(points, idx):
     view_shape[1:] = [1] * (len(view_shape) - 1)
     repeat_shape = list(idx.shape)
     repeat_shape[0] = 1
-    batch_indices = torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape)
+    batch_indices = (
+        torch.arange(B, dtype=torch.long).to(device).view(view_shape).repeat(repeat_shape)
+    )
     new_points = points[batch_indices, idx, :]
     return new_points
 
@@ -129,8 +140,8 @@ def square_distance(src, dst):
     B, N, _ = src.shape
     _, M, _ = dst.shape
     dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
-    dist += torch.sum(src ** 2, -1).view(B, N, 1)
-    dist += torch.sum(dst ** 2, -1).view(B, 1, M)
+    dist += torch.sum(src**2, -1).view(B, N, 1)
+    dist += torch.sum(dst**2, -1).view(B, 1, M)
     return dist
 
 
@@ -153,8 +164,13 @@ class ConvReLULN1D(nn.Module):
         super(ConvReLULN1D, self).__init__()
         self.act = nn.ReLU(inplace=True)
         self.net = nn.Sequential(
-            nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, bias=bias),
-            self.act
+            nn.Conv1d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                bias=bias,
+            ),
+            self.act,
         )
         self.norm = nn.LayerNorm(out_channels)
 
@@ -164,25 +180,27 @@ class ConvReLULN1D(nn.Module):
         x = x.permute(0, 2, 1)
         x = self.norm(x)
         x = x.permute(0, 2, 1)
-        
+
         return x
-    
+
 
 def normal_init(module, mean=0, std=1, bias=0):
-    if hasattr(module, 'weight') and module.weight is not None:
+    if hasattr(module, "weight") and module.weight is not None:
         nn.init.normal_(module.weight, mean, std)
-    if hasattr(module, 'bias') and module.bias is not None:
+    if hasattr(module, "bias") and module.bias is not None:
         nn.init.constant_(module.bias, bias)
 
 
 class GeoRegionSampler(nn.Module):
-    def __init__(self, 
-                 input_dim,
-                 output_dim,
-                 num_init_point,
-                 num_sub_point,
-                 num_neighbor,
-                 pooler_mode='mean'):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        num_init_point,
+        num_sub_point,
+        num_neighbor,
+        pooler_mode="mean",
+    ):
         super(GeoRegionSampler, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -196,15 +214,15 @@ class GeoRegionSampler(nn.Module):
 
         for ii in range(len(num_sub_point)):
             self.diff_projector_list.append(nn.Linear(self.input_dim + 2, self.input_dim + 2))
-            self.agg_projector_list.append(ConvReLULN1D(in_channels=2*(self.input_dim + 2),
-                                                        out_channels=self.input_dim,
-                                                        ))
-            if pooler_mode == 'mean':
+            self.agg_projector_list.append(
+                ConvReLULN1D(in_channels=2 * (self.input_dim + 2), out_channels=self.input_dim)
+            )
+            if pooler_mode == "mean":
                 self.pooler_list.append(nn.AvgPool1d(kernel_size=num_neighbor[ii]))
-            elif pooler_mode =='max':
+            elif pooler_mode == "max":
                 self.pooler_list.append(nn.AdaptiveMaxPool1d(output_size=1))
             else:
-                raise NotImplementedError(f'{self.pooler_mode} is not supported.')
+                raise NotImplementedError(f"{self.pooler_mode} is not supported.")
 
         self.flatten_projector = nn.Linear(self.input_dim * num_sub_point[-1], self.input_dim)
         self.dim_projector = nn.Linear(self.input_dim, self.output_dim)
@@ -217,41 +235,46 @@ class GeoRegionSampler(nn.Module):
             if isinstance(m, nn.Conv2d):
                 normal_init(m, 0, 0.01)
 
-
-    def forward(self, 
-                feature_map, 
-                region_masks, 
-                original_dtype,
-                return_dtype):
-
+    def forward(self, feature_map, region_masks, original_dtype, return_dtype):
         assert len(feature_map) == len(region_masks)
 
         all_points = []
         all_points_fea = []
         all_points_img_ids = []
         # Sample points and their features
-        for img_idx, (region_feature_map_i, region_masks_list_i) in enumerate(zip(feature_map, region_masks)):
+        for img_idx, (region_feature_map_i, region_masks_list_i) in enumerate(
+            zip(feature_map, region_masks)
+        ):
             if len(region_masks_list_i) != 0:
                 # (w, h)
-                ori_image_wh = torch.tensor([region_masks_list_i[0].shape[0], region_masks_list_i[0].shape[1]], device=region_masks_list_i[0].device)[None,]
-                # list of elements of shape [num_sample_point, 2] 
+                ori_image_wh = torch.tensor(
+                    [region_masks_list_i[0].shape[0], region_masks_list_i[0].shape[1]],
+                    device=region_masks_list_i[0].device,
+                )[None,]
+                # list of elements of shape [num_sample_point, 2]
                 # pdb.set_trace()
-                cur_non_zero_pos = [rand_sample_repeat((m.nonzero()/ori_image_wh), self.num_init_point) for m in region_masks_list_i]
+                cur_non_zero_pos = [
+                    rand_sample_repeat((m.nonzero() / ori_image_wh), self.num_init_point)
+                    for m in region_masks_list_i
+                ]
                 # list -> [num_mask, num_sample_point, 2]
                 cur_non_zero_pos = torch.stack(cur_non_zero_pos)
                 # [HxW, C] -> [H, W, C] -> [C, H, W] -> [N, C, H, W]
                 h = w = int(math.sqrt(region_feature_map_i.shape[0]))
                 c = region_feature_map_i.shape[-1]
                 dup_region_feature_map_i = region_feature_map_i.reshape(h, w, c).permute(2, 0, 1)
-                dup_region_feature_map_i = dup_region_feature_map_i.unsqueeze(0).repeat(cur_non_zero_pos.shape[0], 1, 1, 1)
+                dup_region_feature_map_i = dup_region_feature_map_i.unsqueeze(0).repeat(
+                    cur_non_zero_pos.shape[0], 1, 1, 1
+                )
                 # [num_mask, C, H, W] x [num_mask, num_sample_point, 2] -> [num_mask, C, num_sample_point] -> [num_mask, num_sample_point, C]
                 # F.grid_sample doesn't support BF16. Need to tranform into float32 then transform back.
                 dup_region_feature_map_i_ori_type = dup_region_feature_map_i.to(original_dtype)
-                region_feature_i = point_sample(dup_region_feature_map_i_ori_type, 
-                                                cur_non_zero_pos.flip(dims=(2,)).type(original_dtype), 
-                                                return_dtype,
-                                                align_corners=True,
-                                                )
+                region_feature_i = point_sample(
+                    dup_region_feature_map_i_ori_type,
+                    cur_non_zero_pos.flip(dims=(2,)).type(original_dtype),
+                    return_dtype,
+                    align_corners=True,
+                )
                 # region_feature_i = region_feature_i.to(dup_region_feature_map_i.dtype)
                 region_feature_i = region_feature_i.transpose(-2, -1)
 
@@ -265,13 +288,15 @@ class GeoRegionSampler(nn.Module):
         # No region found, return list of None.
         if len(all_points) == 0:
             return [None] * len(region_masks)
-        
-        all_points = torch.cat(all_points, dim=0).to(return_dtype)  # [B*num_mask, num_sample_point, 2]
+
+        all_points = torch.cat(all_points, dim=0).to(
+            return_dtype
+        )  # [B*num_mask, num_sample_point, 2]
         all_points_fea = torch.cat(all_points_fea, dim=0)  # [B*num_mask, num_sample_point, C]
         all_points_img_ids = torch.tensor(all_points_img_ids, device=all_points_fea.device)
         # pdb.set_trace()
         assert all_points_fea.shape[:-1] == all_points_fea.shape[:-1]
-        
+
         # Processing.
         for stage_i in range(len(self.num_sub_point)):
             cur_num_sub_point = self.num_sub_point[stage_i]
@@ -288,24 +313,32 @@ class GeoRegionSampler(nn.Module):
             grouped_points_fea = index_points(all_points_fea, idx)  # [B, npoint, k, d]
 
             # pdb.set_trace()
-            local_points_fea = torch.cat([grouped_points_fea, grouped_points],dim=-1)  # [B, npoint, k, d+2]
-            anchor_points_fea = torch.cat([new_points_fea, new_points],dim=-1).unsqueeze(-2)
-            diff_points_fea = local_points_fea-anchor_points_fea
+            local_points_fea = torch.cat(
+                [grouped_points_fea, grouped_points], dim=-1
+            )  # [B, npoint, k, d+2]
+            anchor_points_fea = torch.cat([new_points_fea, new_points], dim=-1).unsqueeze(-2)
+            diff_points_fea = local_points_fea - anchor_points_fea
 
             diff_points_fea = self.diff_projector_list[stage_i](diff_points_fea)
-            gather_points_fea = torch.cat([diff_points_fea, anchor_points_fea.repeat(1, 1, cur_num_neighbor, 1)], dim=-1)  # [B, npoint, k, 2(d+2)]
+            gather_points_fea = torch.cat(
+                [diff_points_fea, anchor_points_fea.repeat(1, 1, cur_num_neighbor, 1)], dim=-1
+            )  # [B, npoint, k, 2(d+2)]
 
             # pdb.set_trace()
-            b, n, s, d = gather_points_fea.size() 
-            gather_points_fea = gather_points_fea.permute(0, 1, 3, 2)   # [B, npoint, 2(d+2), k]
-            gather_points_fea = gather_points_fea.reshape(-1, d, s)   # [B*npoint, 2(d+2), k]
-            gather_points_fea = self.agg_projector_list[stage_i](gather_points_fea) # [B*npoint, d, k]
+            b, n, s, d = gather_points_fea.size()
+            gather_points_fea = gather_points_fea.permute(0, 1, 3, 2)  # [B, npoint, 2(d+2), k]
+            gather_points_fea = gather_points_fea.reshape(-1, d, s)  # [B*npoint, 2(d+2), k]
+            gather_points_fea = self.agg_projector_list[stage_i](
+                gather_points_fea
+            )  # [B*npoint, d, k]
             # pdb.set_trace()
             batch_size, new_dim, _ = gather_points_fea.size()
-            gather_points_fea = self.pooler_list[stage_i](gather_points_fea).view(batch_size, new_dim) # [B*npoint, d]
+            gather_points_fea = self.pooler_list[stage_i](gather_points_fea).view(
+                batch_size, new_dim
+            )  # [B*npoint, d]
             # gather_points_fea = F.adaptive_max_pool1d(gather_points_fea, 1).view(batch_size, -1) # [B*npoint, d]
             # pdb.set_trace()
-            gather_points_fea = gather_points_fea.reshape(b, n, -1)     # [B, npoint, d]
+            gather_points_fea = gather_points_fea.reshape(b, n, -1)  # [B, npoint, d]
             # pdb.set_trace()
 
             all_points = new_points
@@ -329,9 +362,7 @@ class GeoRegionSampler(nn.Module):
         return output_region_fea
 
 
-
 class FERRETMetaModel:
-
     def __init__(self, config):
         super(FERRETMetaModel, self).__init__(config)
         self.max_sample_point = 512
@@ -345,21 +376,29 @@ class FERRETMetaModel:
 
         if hasattr(config, "region_geo_sampler"):
             # pdb.set_trace()
-            self.region_geo_sampler = GeoRegionSampler(input_dim=config.mm_hidden_size,
-                                                       output_dim=config.hidden_size,
-                                                       num_init_point=self.max_sample_point,
-                                                       num_sub_point=[128, 32],
-                                                       num_neighbor=[24, 24],
-                                                       pooler_mode=config.sampler_pooler_mode
-                                                       )
+            self.region_geo_sampler = GeoRegionSampler(
+                input_dim=config.mm_hidden_size,
+                output_dim=config.hidden_size,
+                num_init_point=self.max_sample_point,
+                num_sub_point=[128, 32],
+                num_neighbor=[24, 24],
+                pooler_mode=config.sampler_pooler_mode,
+            )
 
     def get_vision_tower(self):
-        vision_tower = getattr(self, 'vision_tower', None)
+        vision_tower = getattr(self, "vision_tower", None)
         if type(vision_tower) is list:
             vision_tower = vision_tower[0]
         return vision_tower
 
-    def initialize_vision_modules(self, model_args, fsdp=None, add_region_feature=False, region_geo_sampler=False, sampler_pooler_mode='mean'):
+    def initialize_vision_modules(
+        self,
+        model_args,
+        fsdp=None,
+        add_region_feature=False,
+        region_geo_sampler=False,
+        sampler_pooler_mode="mean",
+    ):
         vision_tower = model_args.vision_tower
         mm_vision_select_layer = model_args.mm_vision_select_layer
         mm_vision_select_feature = model_args.mm_vision_select_feature
@@ -379,7 +418,7 @@ class FERRETMetaModel:
         self.config.mm_vision_select_layer = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
 
-        if not hasattr(self, 'mm_projector'):
+        if not hasattr(self, "mm_projector"):
             self.mm_projector = nn.Linear(self.config.mm_hidden_size, self.config.hidden_size)
 
         if add_region_feature:
@@ -387,29 +426,32 @@ class FERRETMetaModel:
                 self.config.region_geo_sampler = True
                 self.config.sampler_pooler_mode = sampler_pooler_mode
                 # pdb.set_trace()
-                if not hasattr(self, 'region_geo_sampler'):
-                    self.region_geo_sampler = GeoRegionSampler(input_dim=self.config.mm_hidden_size,
-                                                            output_dim=self.config.hidden_size,
-                                                            num_init_point=self.max_sample_point,
-                                                            num_sub_point=[128, 32],
-                                                            num_neighbor=[24, 24],
-                                                            pooler_mode=sampler_pooler_mode
-                                                            )
+                if not hasattr(self, "region_geo_sampler"):
+                    self.region_geo_sampler = GeoRegionSampler(
+                        input_dim=self.config.mm_hidden_size,
+                        output_dim=self.config.hidden_size,
+                        num_init_point=self.max_sample_point,
+                        num_sub_point=[128, 32],
+                        num_neighbor=[24, 24],
+                        pooler_mode=sampler_pooler_mode,
+                    )
             else:
                 self.config.region_fea_adapter = True
-                if not hasattr(self, 'region_fea_adapter'):
-                    self.region_fea_adapter = nn.Linear(self.config.mm_hidden_size, self.config.hidden_size)
+                if not hasattr(self, "region_fea_adapter"):
+                    self.region_fea_adapter = nn.Linear(
+                        self.config.mm_hidden_size, self.config.hidden_size
+                    )
 
         if pretrain_mm_mlp_adapter is not None:
-            mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
-            def get_w(weights, keyword):
-                return {k.split(keyword + '.')[1]: v for k, v in weights.items() if keyword in k}
+            mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location="cpu")
 
-            self.mm_projector.load_state_dict(get_w(mm_projector_weights, 'mm_projector'))
+            def get_w(weights, keyword):
+                return {k.split(keyword + ".")[1]: v for k, v in weights.items() if keyword in k}
+
+            self.mm_projector.load_state_dict(get_w(mm_projector_weights, "mm_projector"))
 
 
 class FERRETMetaForCausalLM(ABC):
-
     @abstractmethod
     def get_model(self):
         pass
@@ -431,8 +473,9 @@ class FERRETMetaForCausalLM(ABC):
 
         return image_features, projected_image_features, new_region_feature_map
 
-
-    def extract_region_feature(self, region_feature_map, region_masks, original_dtype, return_dtype):
+    def extract_region_feature(
+        self, region_feature_map, region_masks, original_dtype, return_dtype
+    ):
         all_region_features = []
         assert len(region_feature_map) == len(region_masks)
         for region_feature_map_i, region_masks_list_i in zip(region_feature_map, region_masks):
@@ -440,33 +483,46 @@ class FERRETMetaForCausalLM(ABC):
                 all_region_features.append(None)
             else:
                 # (w, h)
-                ori_image_wh = torch.tensor([region_masks_list_i[0].shape[0], region_masks_list_i[0].shape[1]], device=region_masks_list_i[0].device)[None,]
+                ori_image_wh = torch.tensor(
+                    [region_masks_list_i[0].shape[0], region_masks_list_i[0].shape[1]],
+                    device=region_masks_list_i[0].device,
+                )[None,]
                 # list of elements of shape [num_sample_point, 2]
-                non_zero_pos = [rand_sample((m.nonzero()/ori_image_wh), self.get_model().max_sample_point) for m in region_masks_list_i]
+                non_zero_pos = [
+                    rand_sample((m.nonzero() / ori_image_wh), self.get_model().max_sample_point)
+                    for m in region_masks_list_i
+                ]
                 # [num_mask, num_sample_point(padded), 2]
-                non_zero_pos = nn.utils.rnn.pad_sequence(non_zero_pos, padding_value=-1, batch_first=True)
+                non_zero_pos = nn.utils.rnn.pad_sequence(
+                    non_zero_pos, padding_value=-1, batch_first=True
+                )
                 non_zero_pos_mask = ~(non_zero_pos.sum(dim=-1) < 0)
                 # [HxW, C] -> [H, W, C] -> [C, H, W] -> [N, C, H, W]
                 h = w = int(math.sqrt(region_feature_map_i.shape[0]))
                 c = region_feature_map_i.shape[-1]
                 dup_region_feature_map_i = region_feature_map_i.reshape(h, w, c).permute(2, 0, 1)
-                dup_region_feature_map_i = dup_region_feature_map_i.unsqueeze(0).repeat(non_zero_pos.shape[0], 1, 1, 1)
+                dup_region_feature_map_i = dup_region_feature_map_i.unsqueeze(0).repeat(
+                    non_zero_pos.shape[0], 1, 1, 1
+                )
                 # [num_mask, C, H, W] x [num_mask, num_sample_point(padded), 2] -> [num_mask, C, num_sample_point(padded)]
                 # F.grid_sample doesn't support BF16. Need to tranform into float32 then transform back.
                 dup_region_feature_map_i_ori_type = dup_region_feature_map_i.to(original_dtype)
                 # pdb.set_trace()
-                region_feature_i = point_sample(dup_region_feature_map_i_ori_type, 
-                                                non_zero_pos.flip(dims=(2,)).type(original_dtype), 
-                                                return_dtype, 
-                                                align_corners=True
-                                                )
+                region_feature_i = point_sample(
+                    dup_region_feature_map_i_ori_type,
+                    non_zero_pos.flip(dims=(2,)).type(original_dtype),
+                    return_dtype,
+                    align_corners=True,
+                )
                 region_feature_i = region_feature_i.to(dup_region_feature_map_i.dtype)
                 # [num_mask, C]
-                region_feature_i = torch.stack([x[m].mean(dim=0) for x, m in zip(region_feature_i.transpose(1,2), non_zero_pos_mask)]).nan_to_num()
+                region_feature_i = torch.stack([
+                    x[m].mean(dim=0)
+                    for x, m in zip(region_feature_i.transpose(1, 2), non_zero_pos_mask)
+                ]).nan_to_num()
                 all_region_features.append(region_feature_i)
-        
+
         return all_region_features
-    
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, attention_mask, past_key_values, labels, images, region_masks
@@ -475,35 +531,54 @@ class FERRETMetaForCausalLM(ABC):
             region_flag = True
         else:
             region_flag = False
-        region_geo_sampler = region_flag and getattr(self.config, 'region_geo_sampler', False)
+        region_geo_sampler = region_flag and getattr(self.config, "region_geo_sampler", False)
 
         vision_tower = self.get_vision_tower()
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
-            if past_key_values is not None and vision_tower is not None and images is not None and input_ids.shape[1] == 1:
-                attention_mask = torch.ones((attention_mask.shape[0], past_key_values[-1][-1].shape[-2] + 1), dtype=attention_mask.dtype, device=attention_mask.device)
+            if (
+                past_key_values is not None
+                and vision_tower is not None
+                and images is not None
+                and input_ids.shape[1] == 1
+            ):
+                attention_mask = torch.ones(
+                    (attention_mask.shape[0], past_key_values[-1][-1].shape[-2] + 1),
+                    dtype=attention_mask.dtype,
+                    device=attention_mask.device,
+                )
             return input_ids, attention_mask, past_key_values, None, labels
 
         if type(images) is list or images.ndim == 5:
             assert region_flag == False
             concat_images = torch.cat([image for image in images], dim=0)
-            raw_image_features, image_features, region_feature_map = self.encode_images(concat_images, region_flag, region_geo_sampler)
+            raw_image_features, image_features, region_feature_map = self.encode_images(
+                concat_images, region_flag, region_geo_sampler
+            )
             # image_features = self.encode_images(concat_images)
             split_sizes = [image.shape[0] for image in images]
             image_features = torch.split(image_features, split_sizes, dim=0)
             image_features = [x.flatten(0, 1) for x in image_features]
         else:
-            raw_image_features, image_features, region_feature_map = self.encode_images(images, region_flag, region_geo_sampler)
+            raw_image_features, image_features, region_feature_map = self.encode_images(
+                images, region_flag, region_geo_sampler
+            )
 
         if region_flag:
             if region_geo_sampler:
                 # pdb.set_trace()
-                region_features = self.get_model().region_geo_sampler(region_feature_map, region_masks, 
-                                                                      original_dtype=raw_image_features.dtype,
-                                                                      return_dtype=image_features.dtype)
+                region_features = self.get_model().region_geo_sampler(
+                    region_feature_map,
+                    region_masks,
+                    original_dtype=raw_image_features.dtype,
+                    return_dtype=image_features.dtype,
+                )
             else:
-                region_features = self.extract_region_feature(region_feature_map, region_masks, 
-                                                              original_dtype=raw_image_features.dtype,
-                                                              return_dtype=image_features.dtype)
+                region_features = self.extract_region_feature(
+                    region_feature_map,
+                    region_masks,
+                    original_dtype=raw_image_features.dtype,
+                    return_dtype=image_features.dtype,
+                )
             assert len(region_features) == len(input_ids)
 
         new_input_embeds = []
@@ -513,7 +588,10 @@ class FERRETMetaForCausalLM(ABC):
             if (cur_input_ids == IMAGE_TOKEN_INDEX).sum() == 0:
                 # multimodal LLM, but the current sample is not multimodal
                 cur_input_embeds = self.get_model().embed_tokens(cur_input_ids)
-                cur_input_embeds = cur_input_embeds + (0. * self.get_model().mm_projector(vision_tower.dummy_feature)).sum()
+                cur_input_embeds = (
+                    cur_input_embeds
+                    + (0.0 * self.get_model().mm_projector(vision_tower.dummy_feature)).sum()
+                )
                 new_input_embeds.append(cur_input_embeds)
                 if labels is not None:
                     new_labels.append(labels[batch_idx])
@@ -529,33 +607,71 @@ class FERRETMetaForCausalLM(ABC):
                 cur_image_features = image_features[cur_image_idx]
                 image_token_start = image_token_indices[0]
                 if region_flag:
-                    assert (cur_input_ids[:image_token_start] == self.config.im_region_fea_token).sum() == 0
+                    assert (
+                        cur_input_ids[:image_token_start] == self.config.im_region_fea_token
+                    ).sum() == 0
                 # If not use start-end token, pt ckpt saved only has mm projector.
-                if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
-                    cur_new_input_embeds.append(self.get_model().embed_tokens(cur_input_ids[:image_token_start-1]).detach())
-                    cur_new_input_embeds.append(self.get_model().embed_tokens(cur_input_ids[image_token_start-1:image_token_start]))
+                if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
+                    self.config, "mm_use_im_start_end", False
+                ):
+                    cur_new_input_embeds.append(
+                        self.get_model()
+                        .embed_tokens(cur_input_ids[: image_token_start - 1])
+                        .detach()
+                    )
+                    cur_new_input_embeds.append(
+                        self.get_model().embed_tokens(
+                            cur_input_ids[image_token_start - 1 : image_token_start]
+                        )
+                    )
                     cur_new_input_embeds.append(cur_image_features)
-                    cur_new_input_embeds.append(self.get_model().embed_tokens(cur_input_ids[image_token_start+1:image_token_start+2]))
+                    cur_new_input_embeds.append(
+                        self.get_model().embed_tokens(
+                            cur_input_ids[image_token_start + 1 : image_token_start + 2]
+                        )
+                    )
                     if labels is not None:
                         cur_new_labels.append(cur_labels[:image_token_start])
-                        cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=labels.device, dtype=labels.dtype))
-                        cur_new_labels.append(cur_labels[image_token_start:image_token_start+1])
-                        cur_labels = cur_labels[image_token_start+2:]
+                        cur_new_labels.append(
+                            torch.full(
+                                (cur_image_features.shape[0],),
+                                IGNORE_INDEX,
+                                device=labels.device,
+                                dtype=labels.dtype,
+                            )
+                        )
+                        cur_new_labels.append(
+                            cur_labels[image_token_start : image_token_start + 1]
+                        )
+                        cur_labels = cur_labels[image_token_start + 2 :]
                 else:
-                    cur_new_input_embeds.append(self.get_model().embed_tokens(cur_input_ids[:image_token_start]))
+                    cur_new_input_embeds.append(
+                        self.get_model().embed_tokens(cur_input_ids[:image_token_start])
+                    )
                     cur_new_input_embeds.append(cur_image_features)
                     if labels is not None:
                         cur_new_labels.append(cur_labels[:image_token_start])
-                        cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=labels.device, dtype=labels.dtype))
-                        cur_labels = cur_labels[image_token_start+1:]
+                        cur_new_labels.append(
+                            torch.full(
+                                (cur_image_features.shape[0],),
+                                IGNORE_INDEX,
+                                device=labels.device,
+                                dtype=labels.dtype,
+                            )
+                        )
+                        cur_labels = cur_labels[image_token_start + 1 :]
                 cur_image_idx += 1
-                if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
-                    cur_input_ids = cur_input_ids[image_token_start+2:]
+                if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
+                    self.config, "mm_use_im_start_end", False
+                ):
+                    cur_input_ids = cur_input_ids[image_token_start + 2 :]
                 else:
-                    cur_input_ids = cur_input_ids[image_token_start+1:]
+                    cur_input_ids = cur_input_ids[image_token_start + 1 :]
                 image_token_indices = torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0]
             if cur_input_ids.numel() > 0:
-                if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
+                if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
+                    self.config, "mm_use_im_start_end", False
+                ):
                     text_input_embeds = self.get_model().embed_tokens(cur_input_ids).detach()
                 else:
                     text_input_embeds = self.get_model().embed_tokens(cur_input_ids)
@@ -563,18 +679,24 @@ class FERRETMetaForCausalLM(ABC):
                     cur_new_labels.append(cur_labels)
 
                 # Add region feature into text feature embeddings.
-                assert batch_idx+1 == cur_image_idx
+                assert batch_idx + 1 == cur_image_idx
                 if region_flag and region_features[batch_idx] is not None:
                     region_embs = torch.zeros_like(text_input_embeds)
-                    region_replace_mask = (cur_input_ids == self.config.im_region_fea_token)
+                    region_replace_mask = cur_input_ids == self.config.im_region_fea_token
                     # pdb.set_trace()
-                    region_embs[region_replace_mask] = region_features[batch_idx].to(text_input_embeds.dtype)
-                    text_input_embeds = text_input_embeds * (~region_replace_mask).to(text_input_embeds.dtype)[:, None] + region_embs                    
+                    region_embs[region_replace_mask] = region_features[batch_idx].to(
+                        text_input_embeds.dtype
+                    )
+                    text_input_embeds = (
+                        text_input_embeds
+                        * (~region_replace_mask).to(text_input_embeds.dtype)[:, None]
+                        + region_embs
+                    )
                     # print('region_embs[..., 0].nonzero()', region_embs[..., 0].nonzero())
                     # raise NotImplementedError()
                     # pdb.set_trace()
                 else:
-                    if hasattr(self.config, 'im_region_fea_token'):
+                    if hasattr(self.config, "im_region_fea_token"):
                         assert (cur_input_ids == self.config.im_region_fea_token).sum() == 0
 
                 cur_new_input_embeds.append(text_input_embeds)
@@ -590,7 +712,17 @@ class FERRETMetaForCausalLM(ABC):
 
             new_input_embeds_align = []
             for cur_new_embed in new_input_embeds:
-                cur_new_embed = torch.cat((cur_new_embed, torch.zeros((max_len - cur_new_embed.shape[0], cur_new_embed.shape[1]), dtype=cur_new_embed.dtype, device=cur_new_embed.device)), dim=0)
+                cur_new_embed = torch.cat(
+                    (
+                        cur_new_embed,
+                        torch.zeros(
+                            (max_len - cur_new_embed.shape[0], cur_new_embed.shape[1]),
+                            dtype=cur_new_embed.dtype,
+                            device=cur_new_embed.device,
+                        ),
+                    ),
+                    dim=0,
+                )
                 new_input_embeds_align.append(cur_new_embed)
             new_input_embeds = torch.stack(new_input_embeds_align, dim=0)
 
@@ -598,26 +730,57 @@ class FERRETMetaForCausalLM(ABC):
                 new_labels_align = []
                 _new_labels = new_labels
                 for cur_new_label in new_labels:
-                    cur_new_label = torch.cat((cur_new_label, torch.full((max_len - cur_new_label.shape[0],), IGNORE_INDEX, dtype=cur_new_label.dtype, device=cur_new_label.device)), dim=0)
+                    cur_new_label = torch.cat(
+                        (
+                            cur_new_label,
+                            torch.full(
+                                (max_len - cur_new_label.shape[0],),
+                                IGNORE_INDEX,
+                                dtype=cur_new_label.dtype,
+                                device=cur_new_label.device,
+                            ),
+                        ),
+                        dim=0,
+                    )
                     new_labels_align.append(cur_new_label)
                 new_labels = torch.stack(new_labels_align, dim=0)
 
             if attention_mask is not None:
                 new_attention_mask = []
-                for cur_attention_mask, cur_new_labels, cur_new_labels_align in zip(attention_mask, _new_labels, new_labels):
-                    new_attn_mask_pad_left = torch.full((cur_new_labels.shape[0] - labels.shape[1],), True, dtype=attention_mask.dtype, device=attention_mask.device)
-                    new_attn_mask_pad_right = torch.full((cur_new_labels_align.shape[0] - cur_new_labels.shape[0],), False, dtype=attention_mask.dtype, device=attention_mask.device)
-                    cur_new_attention_mask = torch.cat((new_attn_mask_pad_left, cur_attention_mask, new_attn_mask_pad_right), dim=0)
+                for cur_attention_mask, cur_new_labels, cur_new_labels_align in zip(
+                    attention_mask, _new_labels, new_labels
+                ):
+                    new_attn_mask_pad_left = torch.full(
+                        (cur_new_labels.shape[0] - labels.shape[1],),
+                        True,
+                        dtype=attention_mask.dtype,
+                        device=attention_mask.device,
+                    )
+                    new_attn_mask_pad_right = torch.full(
+                        (cur_new_labels_align.shape[0] - cur_new_labels.shape[0],),
+                        False,
+                        dtype=attention_mask.dtype,
+                        device=attention_mask.device,
+                    )
+                    cur_new_attention_mask = torch.cat(
+                        (new_attn_mask_pad_left, cur_attention_mask, new_attn_mask_pad_right),
+                        dim=0,
+                    )
                     new_attention_mask.append(cur_new_attention_mask)
                 attention_mask = torch.stack(new_attention_mask, dim=0)
                 assert attention_mask.shape == new_labels.shape
         else:
             new_input_embeds = torch.stack(new_input_embeds, dim=0)
             if labels is not None:
-                new_labels  = torch.stack(new_labels, dim=0)
+                new_labels = torch.stack(new_labels, dim=0)
 
             if attention_mask is not None:
-                new_attn_mask_pad_left = torch.full((attention_mask.shape[0], new_input_embeds.shape[1] - input_ids.shape[1]), True, dtype=attention_mask.dtype, device=attention_mask.device)
+                new_attn_mask_pad_left = torch.full(
+                    (attention_mask.shape[0], new_input_embeds.shape[1] - input_ids.shape[1]),
+                    True,
+                    dtype=attention_mask.dtype,
+                    device=attention_mask.device,
+                )
                 attention_mask = torch.cat((new_attn_mask_pad_left, attention_mask), dim=1)
                 assert attention_mask.shape == new_input_embeds.shape[:2]
 
@@ -629,12 +792,18 @@ class FERRETMetaForCausalLM(ABC):
             self.resize_token_embeddings(len(tokenizer))
 
         if add_region_feature:
-            num_region_fea_tokens = tokenizer.add_tokens([DEFAULT_REGION_FEA_TOKEN], special_tokens=True)
-            self.config.im_region_fea_token = tokenizer.convert_tokens_to_ids([DEFAULT_REGION_FEA_TOKEN])[0]
+            num_region_fea_tokens = tokenizer.add_tokens(
+                [DEFAULT_REGION_FEA_TOKEN], special_tokens=True
+            )
+            self.config.im_region_fea_token = tokenizer.convert_tokens_to_ids([
+                DEFAULT_REGION_FEA_TOKEN
+            ])[0]
             self.resize_token_embeddings(len(tokenizer))
 
         if model_args.mm_use_im_start_end:
-            num_new_tokens = tokenizer.add_tokens([DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
+            num_new_tokens = tokenizer.add_tokens(
+                [DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True
+            )
             self.resize_token_embeddings(len(tokenizer))
 
             if add_region_feature:
@@ -644,10 +813,10 @@ class FERRETMetaForCausalLM(ABC):
                 input_embeddings = self.get_input_embeddings().weight.data
                 output_embeddings = self.get_output_embeddings().weight.data
 
-                input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(
-                    dim=0, keepdim=True)
+                input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(dim=0, keepdim=True)
                 output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(
-                    dim=0, keepdim=True)
+                    dim=0, keepdim=True
+                )
 
                 input_embeddings[-num_new_tokens:] = input_embeddings_avg
                 output_embeddings[-num_new_tokens:] = output_embeddings_avg
@@ -659,8 +828,10 @@ class FERRETMetaForCausalLM(ABC):
                     p.requires_grad = False
 
             if model_args.pretrain_mm_mlp_adapter:
-                mm_projector_weights = torch.load(model_args.pretrain_mm_mlp_adapter, map_location='cpu')
-                embed_tokens_weight = mm_projector_weights['model.embed_tokens.weight']
+                mm_projector_weights = torch.load(
+                    model_args.pretrain_mm_mlp_adapter, map_location="cpu"
+                )
+                embed_tokens_weight = mm_projector_weights["model.embed_tokens.weight"]
                 if add_region_feature:
                     num_new_tokens = num_new_tokens - num_region_fea_tokens
                 assert num_new_tokens == 2
@@ -669,7 +840,9 @@ class FERRETMetaForCausalLM(ABC):
                 elif embed_tokens_weight.shape[0] == num_new_tokens:
                     input_embeddings[-num_new_tokens:] = embed_tokens_weight
                 else:
-                    raise ValueError(f"Unexpected embed_tokens_weight shape. Pretrained: {embed_tokens_weight.shape}. Current: {input_embeddings.shape}. Numer of new tokens: {num_new_tokens}.")
+                    raise ValueError(
+                        f"Unexpected embed_tokens_weight shape. Pretrained: {embed_tokens_weight.shape}. Current: {input_embeddings.shape}. Numer of new tokens: {num_new_tokens}."
+                    )
         elif model_args.mm_use_im_patch_token:
             if model_args.tune_mm_mlp_adapter:
                 for p in self.get_input_embeddings().parameters():

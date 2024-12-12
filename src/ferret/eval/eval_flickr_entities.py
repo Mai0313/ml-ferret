@@ -8,7 +8,6 @@ python ferret/eval/eval_flickr_entities.py \
 
 """
 
-
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
@@ -30,41 +29,45 @@ def resize_bbox(box, image_w=None, image_h=None):
     ratio_w = image_w * 1.0 / VOCAB_IMAGE_W
     ratio_h = image_h * 1.0 / VOCAB_IMAGE_H
 
-    new_box = [int(box[0] * ratio_w), int(box[1] * ratio_h), \
-               int(box[2] * ratio_w), int(box[3] * ratio_h)]
+    new_box = [
+        int(box[0] * ratio_w),
+        int(box[1] * ratio_h),
+        int(box[2] * ratio_w),
+        int(box[3] * ratio_h),
+    ]
     return new_box
 
 
 def decode_bbox_from_caption(text, img_w, img_h, verbose=False):
     entities = []
     boxes = []
-    
+
     start = 0
     in_brackets = False
     entity = ""
     box = ""
-    
+
     for i, char in enumerate(text):
-        if char == '[':
+        if char == "[":
             in_brackets = True
             entity = text[start:i].strip()
             start = i + 1
-        elif char == ']':
+        elif char == "]":
             in_brackets = False
             box = text[start:i].strip()
             start = i + 1
-            
+
             # Convert box string to list of integers
-            box_list = list(map(int, box.split(',')))
+            box_list = list(map(int, box.split(",")))
             resized_box_list = resize_bbox(box_list, img_w, img_h)
             entities.append(entity)
             boxes.append(resized_box_list)
-            
+
             # Skip until the next entity (ignoring periods or other delimiters)
-            while start < len(text) and text[start] not in ['.', ',', ';', '!', '?']:
+            while start < len(text) and text[start] not in [".", ",", ";", "!", "?"]:
                 start += 1
             start += 1  # Skip the delimiter
-        
+
     return entities, boxes
 
 
@@ -72,19 +75,19 @@ def are_phrases_similar(phrase1, phrase2):
     # Step 1: Convert to lower case
     phrase1 = phrase1.lower()
     phrase2 = phrase2.lower()
-    
+
     # Step 2: Standardize spacing around punctuation
-    phrase1 = re.sub(r'\s*([\'",.;!?|:])\s*', r'\1 ', phrase1).strip()
-    phrase2 = re.sub(r'\s*([\'",.;!?|:])\s*', r'\1 ', phrase2).strip()
-    
+    phrase1 = re.sub(r'\s*([\'",.;!?|:])\s*', r"\1 ", phrase1).strip()
+    phrase2 = re.sub(r'\s*([\'",.;!?|:])\s*', r"\1 ", phrase2).strip()
+
     # Step 3: Remove all punctuation
-    phrase1 = re.sub(r'[^\w\s]', '', phrase1)
-    phrase2 = re.sub(r'[^\w\s]', '', phrase2)
-    
+    phrase1 = re.sub(r"[^\w\s]", "", phrase1)
+    phrase2 = re.sub(r"[^\w\s]", "", phrase2)
+
     # Step 4: Remove extra white spaces
-    phrase1 = ' '.join(phrase1.split())
-    phrase2 = ' '.join(phrase2.split())
-    
+    phrase1 = " ".join(phrase1.split())
+    phrase2 = " ".join(phrase2.split())
+
     return phrase1 == phrase2
 
 
@@ -147,9 +150,12 @@ def get_sentence_data(filename) -> List[Dict[str, Any]]:
 
         sentence_data = {"sentence": " ".join(words), "phrases": []}
         for index, phrase, p_id, p_type in zip(first_word, phrases, phrase_id, phrase_type):
-            sentence_data["phrases"].append(
-                {"first_word_index": index, "phrase": phrase, "phrase_id": p_id, "phrase_type": p_type}
-            )
+            sentence_data["phrases"].append({
+                "first_word_index": index,
+                "phrase": phrase,
+                "phrase_id": p_id,
+                "phrase_type": p_type,
+            })
 
         annotations.append(sentence_data)
 
@@ -272,6 +278,7 @@ def box_iou(boxes1: np.array, boxes2: np.array) -> np.array:
 
 #### End of import of box utilities
 
+
 def _merge_boxes(boxes: List[List[int]]) -> List[List[int]]:
     """
     Return the boxes corresponding to the smallest enclosing box containing all the provided boxes
@@ -282,10 +289,13 @@ def _merge_boxes(boxes: List[List[int]]) -> List[List[int]]:
 
     np_boxes = np.asarray(boxes)
 
-    return [[np_boxes[:, 0].min(), np_boxes[:, 1].min(), np_boxes[:, 2].max(), np_boxes[:, 3].max()]]
+    return [
+        [np_boxes[:, 0].min(), np_boxes[:, 1].min(), np_boxes[:, 2].max(), np_boxes[:, 3].max()]
+    ]
+
 
 class RecallTracker:
-    """ Utility class to track recall@k for various k, split by categories"""
+    """Utility class to track recall@k for various k, split by categories"""
 
     def __init__(self, topk: Sequence[int]):
         """
@@ -317,7 +327,8 @@ class RecallTracker:
         for k in self.total_byk_bycat:
             assert k in self.positives_byk_bycat
             report[k] = {
-                cat: self.positives_byk_bycat[k][cat] / self.total_byk_bycat[k][cat] for cat in self.total_byk_bycat[k]
+                cat: self.positives_byk_bycat[k][cat] / self.total_byk_bycat[k][cat]
+                for cat in self.total_byk_bycat[k]
             }
         return report
 
@@ -332,7 +343,6 @@ class Flickr30kEntitiesRecallEvaluator:
         merge_boxes: bool = False,
         verbose: bool = True,
     ):
-
         assert subset in ["train", "test", "val"], f"Wrong flickr subset {subset}"
 
         self.topk = topk
@@ -376,13 +386,19 @@ class Flickr30kEntitiesRecallEvaluator:
 
             # Some phrases don't have boxes, we filter them.
             for sent_id, sentence in enumerate(sentence_info):
-                phrases = [phrase for phrase in sentence["phrases"] if phrase["phrase_id"] in self.imgid2boxes[img_id]]
+                phrases = [
+                    phrase
+                    for phrase in sentence["phrases"]
+                    if phrase["phrase_id"] in self.imgid2boxes[img_id]
+                ]
                 if len(phrases) > 0:
                     self.imgid2sentences[img_id][sent_id] = phrases
                 tot_phrases += len(phrases)
 
             self.all_ids += [
-                f"{img_id}_{k}" for k in range(len(sentence_info)) if self.imgid2sentences[img_id][k] is not None
+                f"{img_id}_{k}"
+                for k in range(len(sentence_info))
+                if self.imgid2sentences[img_id][k] is not None
             ]
 
         if verbose:
@@ -416,8 +432,14 @@ class Flickr30kEntitiesRecallEvaluator:
             pred_boxes = pred["boxes"]
             if str(pred["image_id"]) not in self.imgid2sentences:
                 raise RuntimeError(f"Unknown image id {pred['image_id']}")
-            if not 0 <= int(pred["sentence_id"]) < len(self.imgid2sentences[str(pred["image_id"])]):
-                raise RuntimeError(f"Unknown sentence id {pred['sentence_id']}" f" in image {pred['image_id']}")
+            if (
+                not 0
+                <= int(pred["sentence_id"])
+                < len(self.imgid2sentences[str(pred["image_id"])])
+            ):
+                raise RuntimeError(
+                    f"Unknown sentence id {pred['sentence_id']} in image {pred['image_id']}"
+                )
             target_sentence = self.imgid2sentences[str(pred["image_id"])][int(pred["sentence_id"])]
 
             phrases = self.imgid2sentences[str(pred["image_id"])][int(pred["sentence_id"])]
@@ -459,48 +481,52 @@ class Flickr30kEntitiesRecallEvaluator:
 
 
 class Flickr30kEntitiesRecallEvaluatorFromJsonl(Flickr30kEntitiesRecallEvaluator):
-    def evaluate(self, 
-                 annotation_file: str,
-                 prediction_file: str,
-                 verbose: bool = False,
-                ):
+    def evaluate(self, annotation_file: str, prediction_file: str, verbose: bool = False):
         recall_tracker = RecallTracker(self.topk)
-        
-        gt_json = json.load(open(annotation_file, 'r', encoding='utf-8'))
+
+        gt_json = json.load(open(annotation_file, "r", encoding="utf-8"))
 
         # get the predictions
         if os.path.isfile(prediction_file):
             predictions = [json.loads(line) for line in open(prediction_file)]
         elif os.path.isdir(prediction_file):
-            predictions = [json.loads(line) for pred_file in sorted(os.listdir(prediction_file)) for line in open(os.path.join(prediction_file, pred_file))]
+            predictions = [
+                json.loads(line)
+                for pred_file in sorted(os.listdir(prediction_file))
+                for line in open(os.path.join(prediction_file, pred_file))
+            ]
         else:
-            raise NotImplementedError('Not supported file format.')
-        
+            raise NotImplementedError("Not supported file format.")
+
         predict_index = 0
-        
+
         valid_cnt = 0
-        for item in tqdm(gt_json['images']):
+        for item in tqdm(gt_json["images"]):
             file_name = item["file_name"]
             caption = item["caption"]
-            img_height = float(item['height'])
-            img_width = float(item['width'])
-            postive_item_pos = item['tokens_positive_eval']
-            
-            # to verify 
-            phrases_from_self = self.imgid2sentences[str(item['original_img_id'])][int(item['sentence_id'])]
+            img_height = float(item["height"])
+            img_width = float(item["width"])
+            postive_item_pos = item["tokens_positive_eval"]
+
+            # to verify
+            phrases_from_self = self.imgid2sentences[str(item["original_img_id"])][
+                int(item["sentence_id"])
+            ]
             for pos in postive_item_pos:
                 # pdb.set_trace()
                 if predict_index == len(predictions):
                     break
-                
+
                 pos_start, pos_end = pos[0]
                 phrase = caption[pos_start:pos_end]
-                phrase_from_self = [p for p in phrases_from_self if p['phrase'] == phrase]
+                phrase_from_self = [p for p in phrases_from_self if p["phrase"] == phrase]
                 if len(phrase_from_self) == 0:
-                    raise ValueError(f"Can't find the corresponding gt from two file {phrase} vs. {phrases_from_self}")
+                    raise ValueError(
+                        f"Can't find the corresponding gt from two file {phrase} vs. {phrases_from_self}"
+                    )
                 else:
                     phrase_from_self = phrase_from_self[0]
-                
+
                 # get the prediction from text line
                 try:
                     prediction = predictions[predict_index]["text"]
@@ -508,30 +534,37 @@ class Flickr30kEntitiesRecallEvaluatorFromJsonl(Flickr30kEntitiesRecallEvaluator
                     print("Raise Indexerror.")
                     print(f"prediction index / length: {predict_index} / {len(predictions)}")
                     import sys
+
                     sys.exit(0)
                 try:
-                    entities, boxes = decode_bbox_from_caption(prediction, img_width, img_height, verbose=verbose)
+                    entities, boxes = decode_bbox_from_caption(
+                        prediction, img_width, img_height, verbose=verbose
+                    )
                     assert len(entities) == len(boxes)
                 except ValueError as e:
                     entities, boxes = [], []
 
                 predict_boxes = []
 
-                for (entity, box) in zip(entities, boxes):
-                    if not are_phrases_similar(entity, phrase): # get the matched noun phrase
+                for entity, box in zip(entities, boxes):
+                    if not are_phrases_similar(entity, phrase):  # get the matched noun phrase
                         # print(f"{entity} | {phrase}")
                         continue
                     else:
                         predict_boxes.append(box)
 
                 if len(predict_boxes) == 0:
-                    print(f"Can't find valid bbox for the given phrase ({phrase}) in caption ({caption}), \n{prediction}")
+                    print(
+                        f"Can't find valid bbox for the given phrase ({phrase}) in caption ({caption}), \n{prediction}"
+                    )
                     print(f"We set a 0-area box to calculate recall result")
-                    predict_boxes = [[0., 0., 0., 0.]]
+                    predict_boxes = [[0.0, 0.0, 0.0, 0.0]]
                     # exit(0)
-                
+
                 # evaluate
-                target_boxes = self.imgid2boxes[str(item['original_img_id'])][phrase_from_self["phrase_id"]]
+                target_boxes = self.imgid2boxes[str(item["original_img_id"])][
+                    phrase_from_self["phrase_id"]
+                ]
                 ious = box_iou(np.asarray(predict_boxes), np.asarray(target_boxes))
                 for k in self.topk:
                     maxi = 0
@@ -548,15 +581,15 @@ class Flickr30kEntitiesRecallEvaluatorFromJsonl(Flickr30kEntitiesRecallEvaluator
                         recall_tracker.add_negative(k, "all")
                         for phrase_type in phrase_from_self["phrase_type"]:
                             recall_tracker.add_negative(k, phrase_type)
-                            
+
                 # pdb.set_trace()
                 valid_cnt += 1
             predict_index += 1
-  
-        print(f"Valid prediction {valid_cnt}/{len(predictions)}")     
+
+        print(f"Valid prediction {valid_cnt}/{len(predictions)}")
         self.results = recall_tracker.report()
         return self.results
-    
+
     def summarize(self):
         table = PrettyTable()
         all_cat = sorted(list(self.results.values())[0].keys())
@@ -575,37 +608,43 @@ class Flickr30kEntitiesRecallEvaluatorFromJsonl(Flickr30kEntitiesRecallEvaluator
         return score
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--prediction_file', help='prediction_file')
-    parser.add_argument('--annotation_file', default='/path/to/final_flickr_mergedGT_test.json', help='annotation_file')
-    parser.add_argument('--flickr_entities_path', default='/path/to/flickr30k_entities', help='flickr entities')
-    
+    parser.add_argument("--prediction_file", help="prediction_file")
+    parser.add_argument(
+        "--annotation_file",
+        default="/path/to/final_flickr_mergedGT_test.json",
+        help="annotation_file",
+    )
+    parser.add_argument(
+        "--flickr_entities_path", default="/path/to/flickr30k_entities", help="flickr entities"
+    )
+
     args = parser.parse_args()
 
     if os.path.isfile(args.prediction_file):
         predictions = [json.loads(line) for line in open(args.prediction_file)]
     elif os.path.isdir(args.prediction_file):
         predictions = []
-    
-    if '_test.json' in args.annotation_file:
+
+    if "_test.json" in args.annotation_file:
         subset = "test"
     else:
         subset = "val"
-    
+
     evaluator = Flickr30kEntitiesRecallEvaluatorFromJsonl(
-        flickr_path = args.flickr_entities_path,
-        subset = subset,
-        topk = (1, 5, 10, -1),
-        iou_thresh = 0.5,
-        merge_boxes = True,
-        verbose = True,
+        flickr_path=args.flickr_entities_path,
+        subset=subset,
+        topk=(1, 5, 10, -1),
+        iou_thresh=0.5,
+        merge_boxes=True,
+        verbose=True,
     )
-    
+
     evaluator.evaluate(args.annotation_file, args.prediction_file, verbose=False)
     score = evaluator.summarize()
-    
+
     with open(os.path.join(args.prediction_file, "metric.json"), "w") as f:
         json.dump(score, f, indent=2)

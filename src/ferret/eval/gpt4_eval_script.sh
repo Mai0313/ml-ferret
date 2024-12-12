@@ -1,5 +1,5 @@
 #!/bin/bash
- 
+
 CHECKPOINT_FILE='ferret_ft/final-checkpoint'
 
 CUDA_VISIBLE_DEVICES=0 python -m ferret.eval.model_gpt4eval_3newclass --add_region_feature \

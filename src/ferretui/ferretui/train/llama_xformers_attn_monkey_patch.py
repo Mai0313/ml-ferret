@@ -33,29 +33,20 @@ def xformers_forward(
     bsz, q_len, _ = hidden_states.size()
 
     query_states = (
-        self.q_proj(hidden_states)
-        .view(bsz, q_len, self.num_heads, self.head_dim)
-        .transpose(1, 2)
+        self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
     )
     key_states = (
-        self.k_proj(hidden_states)
-        .view(bsz, q_len, self.num_heads, self.head_dim)
-        .transpose(1, 2)
+        self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
     )
     value_states = (
-        self.v_proj(hidden_states)
-        .view(bsz, q_len, self.num_heads, self.head_dim)
-        .transpose(1, 2)
+        self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
     )
 
     kv_seq_len = key_states.shape[-2]
     if past_key_value is not None:
         kv_seq_len += past_key_value[0].shape[-2]
     cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-    (
-        query_states,
-        key_states,
-    ) = transformers.models.llama.modeling_llama.apply_rotary_pos_emb(
+    (query_states, key_states) = transformers.models.llama.modeling_llama.apply_rotary_pos_emb(
         query_states, key_states, cos, sin, position_ids
     )
     # [bsz, nh, t, hd]
@@ -90,9 +81,9 @@ def xformers_forward(
             )
         attn_weights = None
     else:
-        attn_weights = torch.matmul(
-            query_states, key_states.transpose(2, 3)
-        ) / math.sqrt(self.head_dim)
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(
+            self.head_dim
+        )
 
         if attn_weights.size() != (bsz, self.num_heads, q_len, kv_seq_len):
             raise ValueError(
@@ -111,9 +102,9 @@ def xformers_forward(
             )
 
         # upcast attention to fp32
-        attn_weights = nn.functional.softmax(
-            attn_weights, dim=-1, dtype=torch.float32
-        ).to(query_states.dtype)
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(
+            query_states.dtype
+        )
         attn_output = torch.matmul(attn_weights, value_states)
 
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):

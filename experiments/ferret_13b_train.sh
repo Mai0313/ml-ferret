@@ -6,40 +6,40 @@ mkdir -p checkpoints
 echo "Start Fine-Tuning"
 # =================== Training ======================
 data_path=(
-            'dataset/git_instruction.json' 
-            'dataset/vg_objects.json'  
-            'dataset/vg_relations.json' 
-            'dataset/vg_regions.json' 
-            'dataset/grounded_llava_boxes_detail.json' 
-            'dataset/grounded_llava_boxes_complex_reasoning.json' 
-            'dataset/grounded_llava_boxes_conversation.json' 
-            'dataset/refexp_all.json' 
-            'dataset/flickr.json' 
-            'dataset/objects365.json' 
+            'dataset/git_instruction.json'
+            'dataset/vg_objects.json'
+            'dataset/vg_relations.json'
+            'dataset/vg_regions.json'
+            'dataset/grounded_llava_boxes_detail.json'
+            'dataset/grounded_llava_boxes_complex_reasoning.json'
+            'dataset/grounded_llava_boxes_conversation.json'
+            'dataset/refexp_all.json'
+            'dataset/flickr.json'
+            'dataset/objects365.json'
             )
 image_folder=(
-            'dataset/coco2014/train2014' 
-            'dataset/vg/images' 
-            'dataset/vg/images' 
-            'dataset/vg/images' 
-            'dataset/coco2014/train2014' 
-            'dataset/coco2014/train2014' 
-            'dataset/coco2014/train2014' 
-            'data/refcoco/train2014' 
-            'data/flickr30k/flickr30k_images_split/train' 
-            'data/objects365_v1/train' 
+            'dataset/coco2014/train2014'
+            'dataset/vg/images'
+            'dataset/vg/images'
+            'dataset/vg/images'
+            'dataset/coco2014/train2014'
+            'dataset/coco2014/train2014'
+            'dataset/coco2014/train2014'
+            'data/refcoco/train2014'
+            'data/flickr30k/flickr30k_images_split/train'
+            'data/objects365_v1/train'
             )
 data_multiple=(
-            3 
-            1 
-            0.2 
-            0.2 
-            1 
-            1 
-            1 
-            1 
-            1 
-            1 
+            3
+            1
+            0.2
+            0.2
+            1
+            1
+            1
+            1
+            1
+            1
             )
 
 # convert array to string
@@ -97,4 +97,3 @@ torchrun --nnodes=1 --nproc_per_node=8 --master_port=25001 \
     --resized_image_h 336 \
     --resized_image_w 336 \
     --save_vision_tower True
-
