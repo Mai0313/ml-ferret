@@ -99,9 +99,9 @@ url = "https://pypi.org/simple"
 name = "pytorch"
 url = "https://download.pytorch.org/whl"
 
-[[tool.rye.proxy]]
-http = "http://mtkdrone01.mediatek.inc:23984"
-https = "http://mtkdrone01.mediatek.inc:23984"
+# [[tool.rye.proxy]]
+# http = "http://mtkdrone01.mediatek.inc:23984"
+# https = "http://mtkdrone01.mediatek.inc:23984"
 
 [[tool.uv.index]]
 name = "default"
