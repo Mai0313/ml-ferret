@@ -59,9 +59,9 @@ omit = ["./src/ameba/*"]
 # ================== #
 
 [project]
-name = "ml-ferret"
-version = "1.0.0"
-description = "Repository template for Python projects"
+name = "ferret"
+version = "1.0.1"
+description = "Towards GPT-4 like large language and visual assistant."
 authors = [
     { name = "Wei", email = "mai@mai0313.com" },
 ]
@@ -94,15 +94,14 @@ docs = { chain = ["docs:gen", "docs:run"] }
 [[tool.rye.sources]]
 name = "default"
 url = "https://pypi.org/simple"
-# url = "http://10.9.16.152/simple"
 
-# [[tool.rye.sources]]
-# name = "pytorch"
-# url = "https://download.pytorch.org/whl"
+[[tool.rye.sources]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl"
 
-# [[tool.rye.proxy]]
-# http = "http://mtkdrone01.mediatek.inc:23984"
-# https = "http://mtkdrone01.mediatek.inc:23984"
+[[tool.rye.proxy]]
+http = "http://mtkdrone01.mediatek.inc:23984"
+https = "http://mtkdrone01.mediatek.inc:23984"
 
 [[tool.uv.index]]
 name = "default"
@@ -117,7 +116,7 @@ default = true
 [tool.rye]
 managed = true
 virtual = true
-universal = true
+universal = false
 dev-dependencies = [
     "notebook>=7.3.1",
     "ipykernel>=6.29.5",
@@ -148,7 +147,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/template"]
+packages = ["src/ferret", "src/ferretui"]
 
 [tool.hatch.build.targets.sdist]
 # Basically everything except hidden files/directories (such as .github, .devcontainers, .python-version, etc)
@@ -479,7 +478,7 @@ fast_shutdown=true
 # ================== #
 
 [tool.codespell]
-skip = "pyproject.toml,poetry.lock,notebook/.*"
+skip = "pyproject.toml,poetry.lock,notebook/.*,*.json,*.jsonl"
 count = false
 quiet-level = 3
 # the correct one is Amoeba, but we use pronunciation in Chinese to name it.
