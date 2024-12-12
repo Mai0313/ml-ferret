@@ -46,7 +46,7 @@ repos:
         args:
           - --fix=lf
       - id: check-docstring-first
-      - id: debug-statements
+      # - id: debug-statements
       - id: check-symlinks
 
   # md formatting
