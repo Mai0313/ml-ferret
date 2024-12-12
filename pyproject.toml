@@ -103,10 +103,10 @@ url = "https://download.pytorch.org/whl"
 # http = "http://mtkdrone01.mediatek.inc:23984"
 # https = "http://mtkdrone01.mediatek.inc:23984"
 
-[[tool.uv.index]]
-name = "default"
-url = "https://pypi.org/simple"
-default = true
+# [[tool.uv.index]]
+# name = "default"
+# url = "https://pypi.org/simple"
+# default = true
 
 # [[tool.uv.index]]
 # name = "pytorch"
