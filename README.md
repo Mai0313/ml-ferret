@@ -8,7 +8,7 @@ Brief description of the project.
 
 ## Getting Started  -->
 
-# <img src="figs/ferret_icon.png" alt="Alt text for the image" width="40" height="45"> Ferret: Refer and Ground Anything Anywhere at Any Granularity
+# <img src="docs/figs/ferret_icon.png" alt="Alt text for the image" width="40" height="45"> Ferret: Refer and Ground Anything Anywhere at Any Granularity
 
 *An End-to-End MLLM that Accept Any-Form Referring and Ground Anything in Response.* [[Paper](https://arxiv.org/abs/2310.07704)]
 
@@ -26,7 +26,7 @@ Brief description of the project.
 ## Overview
 
 <p align="center">
-    <img src="docs/figs/ferret_fig_diagram_v2.png" width="100%"></a> <br>
+    <img src="docs/docs/figs/ferret_fig_diagram_v2.png" width="100%"></a> <br>
     Diagram of Ferret Model.
 </p>
 
@@ -141,7 +141,7 @@ Wait until the process finishes loading the model and you see "Uvicorn running o
 
 
 <p align="center">
-    <img src="figs/ferret_demo.png" width="105%"></a> <br>
+    <img src="docs/figs/ferret_demo.png" width="105%"></a> <br>
     Example of Ferret Interactive Demo.
 </p>
 
